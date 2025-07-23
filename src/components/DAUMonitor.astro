@@ -1,0 +1,833 @@
+---
+export interface Props {
+  autoRefresh?: boolean;
+}
+
+const { autoRefresh = true } = Astro.props;
+---
+
+<div class="bg-white rounded-lg shadow-lg p-6 max-w-6xl mx-auto" data-auto-refresh={autoRefresh}>
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-3xl font-bold text-gray-900">Daily Active Users</h2>
+      <p class="text-gray-600 mt-1">Real-time monitoring</p>
+      <p class="text-xs text-blue-600 mt-1">📅 Year-over-year comparisons use day-of-week alignment (e.g., Tuesday vs Tuesday) for accurate business trend analysis</p>
+    </div>
+    <div class="flex space-x-3">
+      <button 
+        id="refresh-dau" 
+        class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+      >
+        <span class="button-text">Refresh</span>
+        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden loading-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </button>
+      <div class="flex items-center">
+        <div id="last-updated" class="text-sm text-gray-500">Never updated</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Month Navigation -->
+  <div class="flex items-center justify-center mb-6">
+    <div class="flex items-center space-x-4 bg-gray-50 rounded-lg p-3">
+      <button id="prev-month" class="p-2 rounded-lg bg-white hover:bg-gray-100 transition-colors shadow-sm">
+        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+      </button>
+      <div class="text-lg font-semibold text-gray-900 min-w-32 text-center">
+        <span id="current-month-year">Loading...</span>
+      </div>
+      <button id="next-month" class="p-2 rounded-lg bg-white hover:bg-gray-100 transition-colors shadow-sm">
+        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+
+
+  <!-- Current Stats -->
+  <div id="current-stats" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"></div>
+
+  <!-- Trend Chart -->
+  <div class="mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-semibold text-gray-900">30-Day Monthly Trend</h3>
+             <!-- Legend -->
+       <div id="chart-legend" class="flex items-center space-x-4 text-sm">
+         <div class="flex items-center">
+           <div class="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+           <span id="current-year-label">2025</span>
+         </div>
+         <div id="yoy-legend" class="flex items-center">
+           <div class="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
+                           <span id="yoy-year-label">2024</span>
+         </div>
+         <div id="year2023-legend" class="flex items-center">
+           <div class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+           <span id="year2023-label">2023</span>
+         </div>
+       </div>
+    </div>
+    <div class="bg-gray-50 rounded-lg p-4 relative">
+      <canvas 
+        id="dau-chart" 
+        class="w-full h-80 cursor-crosshair"
+      ></canvas>
+      <div id="chart-tooltip" class="absolute bg-gray-900 text-white text-sm rounded-lg px-3 py-2 pointer-events-none opacity-0 transition-opacity duration-200 z-10 whitespace-nowrap shadow-lg">
+        <div id="tooltip-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div id="status-container" class="text-center py-8">
+    <div class="text-gray-500">Click "Refresh" to load DAU data</div>
+  </div>
+</div>
+
+<script>
+  let dauChart = null;
+  let currentMonth = new Date().getMonth() + 1; // 1-based month
+  let currentYear = new Date().getFullYear();
+  
+  async function loadDAUData(month = currentMonth, year = currentYear) {
+    const refreshButton = document.getElementById('refresh-dau');
+    const buttonText = refreshButton?.querySelector('.button-text');
+    const loadingSpinner = refreshButton?.querySelector('.loading-spinner');
+    const statusContainer = document.getElementById('status-container');
+    const lastUpdated = document.getElementById('last-updated');
+    
+    // Update button state
+    if (refreshButton) refreshButton.disabled = true;
+    if (buttonText) buttonText.textContent = 'Loading...';
+    if (loadingSpinner) loadingSpinner.classList.remove('hidden');
+    
+    try {
+      const response = await fetch(`/api/dau-monitor?month=${month}&year=${year}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        // Update current month/year from response
+        currentMonth = result.data.currentMonth;
+        currentYear = result.data.currentYear;
+        
+        // Update month display
+        const monthYearEl = document.getElementById('current-month-year');
+        if (monthYearEl) {
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          monthYearEl.textContent = `${monthNames[currentMonth - 1]} ${currentYear}`;
+        }
+        
+        // Update navigation button states
+        const nextButton = document.getElementById('next-month');
+        if (nextButton) {
+          const now = new Date();
+          const isCurrentMonth = currentYear === now.getFullYear() && currentMonth === (now.getMonth() + 1);
+          nextButton.disabled = isCurrentMonth;
+          nextButton.classList.toggle('opacity-50', isCurrentMonth);
+          nextButton.classList.toggle('cursor-not-allowed', isCurrentMonth);
+        }
+        
+        displayDAUData(result.data);
+        if (lastUpdated) {
+          lastUpdated.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+        }
+        if (statusContainer) statusContainer.innerHTML = '';
+      } else {
+        throw new Error(result.error || 'Failed to load DAU data');
+      }
+      
+    } catch (error) {
+      console.error('Failed to load DAU data:', error);
+      if (statusContainer) {
+        statusContainer.innerHTML = `
+          <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div class="text-red-700">Failed to load DAU data: ${error.message}</div>
+          </div>
+        `;
+      }
+    } finally {
+      // Reset button state
+      if (refreshButton) refreshButton.disabled = false;
+      if (buttonText) buttonText.textContent = 'Refresh';
+      if (loadingSpinner) loadingSpinner.classList.add('hidden');
+    }
+  }
+  
+  function displayDAUData(data) {
+    // Update chart title with date range
+    const chartTitle = document.querySelector('h3');
+    if (chartTitle && data.dateRange) {
+      const startDate = new Date(data.dateRange.start);
+      const endDate = new Date(data.dateRange.end);
+      const startStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const endStr = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const monthName = startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      chartTitle.textContent = `Monthly Trend - ${monthName}`;
+    }
+    
+
+    
+    // Display current stats
+    displayCurrentStats(data);
+    
+    // Display trend chart
+    displayTrendChart(data.trend, data.hasYoYData, data.has2023Data);
+    
+    // Update legend with actual years and show/hide YoY and 2023 legends
+    const yoyLegend = document.getElementById('yoy-legend');
+    const year2023Legend = document.getElementById('year2023-legend');
+    const currentYearLabel = document.getElementById('current-year-label');
+    const yoyYearLabel = document.getElementById('yoy-year-label');
+    const year2023Label = document.getElementById('year2023-label');
+    
+    if (data.trend && data.trend.length > 0) {
+      // Extract current year from the data
+      const currentYear = new Date(data.trend[0].date).getFullYear();
+      if (currentYearLabel) {
+        currentYearLabel.textContent = currentYear.toString();
+      }
+      
+      // Always show YoY legend with appropriate year
+      if (data.hasYoYData && data.trend[0].yoyDate) {
+        // Extract YoY year from the shifted data
+        const yoyYear = new Date(data.trend[0].yoyDate).getFullYear();
+        if (yoyYearLabel) {
+          yoyYearLabel.textContent = `${yoyYear}`;
+        }
+      } else {
+        // Default to 2024 when no data
+        if (yoyYearLabel) {
+          yoyYearLabel.textContent = '2024';
+        }
+      }
+      
+      // Always show 2023 legend
+      if (year2023Label) {
+        year2023Label.textContent = '2023';
+      }
+    }
+  }
+  
+
+  
+  function displayCurrentStats(data) {
+    const statsContainer = document.getElementById('current-stats');
+    if (!statsContainer) return;
+    
+    // Calculate YoY comparison for current DAU if available
+    let yoyCurrentComparison = '';
+    let yoyYear = '';
+    if (data.hasYoYData && data.trend?.length > 0) {
+      const currentPoint = data.trend[data.trend.length - 1];
+      if (currentPoint.yoyUsers && currentPoint.yoyUsers > 0 && currentPoint.yoyDate) {
+        yoyYear = new Date(currentPoint.yoyDate).getFullYear().toString();
+        const yoyChange = ((currentPoint.users - currentPoint.yoyUsers) / currentPoint.yoyUsers * 100);
+        const changeColor = yoyChange >= 0 ? 'text-green-600' : 'text-red-600';
+        const changeSymbol = yoyChange >= 0 ? '+' : '';
+        yoyCurrentComparison = `<div class="text-xs ${changeColor} mt-1">${changeSymbol}${yoyChange.toFixed(1)}% vs ${yoyYear}</div>`;
+      }
+    }
+    
+    const yoyAverageDisplay = data.hasYoYData && data.yoySummary && yoyYear ? 
+              `<div class="text-xs text-gray-500 mt-1">vs ${data.yoySummary.averageDAU.toLocaleString()} avg ${yoyYear}</div>` : '';
+    
+    statsContainer.innerHTML = `
+      <div class="bg-blue-50 rounded-lg p-4">
+        <div class="text-2xl font-bold text-blue-900">${data.currentDAU.toLocaleString()}</div>
+        <div class="text-sm text-blue-700">Today's DAU</div>
+        ${yoyCurrentComparison}
+      </div>
+      <div class="bg-gray-50 rounded-lg p-4">
+        <div class="text-2xl font-bold text-gray-900">${data.summary.averageDAU.toLocaleString()}</div>
+        <div class="text-sm text-gray-700">14-Day Average</div>
+        ${yoyAverageDisplay}
+      </div>
+      <div class="bg-green-50 rounded-lg p-4">
+        <div class="text-2xl font-bold text-green-900">${data.summary.maxDAU.toLocaleString()}</div>
+        <div class="text-sm text-green-700">14-Day Peak</div>
+      </div>
+      <div class="bg-red-50 rounded-lg p-4">
+        <div class="text-2xl font-bold text-red-900">${data.summary.minDAU.toLocaleString()}</div>
+        <div class="text-sm text-red-700">14-Day Low</div>
+      </div>
+    `;
+  }
+  
+  function displayTrendChart(trendData, hasYoYData = false, has2023Data = false) {
+    const canvas = document.getElementById('dau-chart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size to match its display size for crisp rendering
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    
+    const width = rect.width;
+    const height = rect.height;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    // Chart layout with consistent padding (extra bottom padding for rotated labels)
+    const padding = { top: 40, right: 60, bottom: 100, left: 80 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+    
+    const values = trendData.map(d => d.users);
+    const yoyValues = hasYoYData ? trendData.map(d => d.yoyUsers || 0).filter(v => v > 0) : [];
+    const year2023Values = has2023Data ? trendData.map(d => d.year2023Users || 0).filter(v => v > 0) : [];
+    const allValues = [...values];
+    if (hasYoYData) allValues.push(...yoyValues);
+    if (has2023Data) allValues.push(...year2023Values);
+    const maxValue = Math.max(...allValues);
+    const minValue = Math.min(...allValues);
+    const valueRange = maxValue - minValue || 1;
+    
+    // Store data points for hover detection
+    const dataPoints = [];
+    
+    // Draw axes
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, padding.top);
+    ctx.lineTo(padding.left, height - padding.bottom);
+    ctx.lineTo(width - padding.right, height - padding.bottom);
+    ctx.stroke();
+    
+    // Draw current year trend line
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    
+    trendData.forEach((point, index) => {
+      const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+      const y = height - padding.bottom - ((point.users - minValue) / valueRange) * chartHeight;
+      
+      // Store point data for hover detection (using display coordinates)
+      const displayX = padding.left + (index / (trendData.length - 1)) * chartWidth;
+      const displayY = height - padding.bottom - ((point.users - minValue) / valueRange) * chartHeight;
+      
+      dataPoints.push({
+        x: displayX, 
+        y: displayY, 
+        date: point.date,
+        formattedDate: point.formattedDate,
+        users: point.users,
+        yoyUsers: point.yoyUsers,
+        type: 'current'
+      });
+      
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    
+    // Draw YoY trend line if available
+    if (hasYoYData) {
+      ctx.strokeStyle = '#8b5cf6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      let yoyStarted = false;
+      trendData.forEach((point, index) => {
+        if (point.yoyUsers && point.yoyUsers > 0) {
+          const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+          const y = height - padding.bottom - ((point.yoyUsers - minValue) / valueRange) * chartHeight;
+          
+          // Store YoY point data for hover detection (using display coordinates)
+          const displayX = padding.left + (index / (trendData.length - 1)) * chartWidth;
+          const displayY = height - padding.bottom - ((point.yoyUsers - minValue) / valueRange) * chartHeight;
+          
+          dataPoints.push({
+            x: displayX, 
+            y: displayY, 
+            date: point.yoyDate || point.date,
+            formattedDate: point.yoyFormattedDate || point.formattedDate,
+            users: point.yoyUsers,
+            yoyUsers: point.yoyUsers,
+            type: 'yoy'
+          });
+          
+          if (!yoyStarted) {
+            ctx.moveTo(x, y);
+            yoyStarted = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      });
+      
+      if (yoyStarted) {
+        ctx.stroke();
+      }
+    }
+    
+    // Draw 2023 trend line if available
+    if (has2023Data) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      let year2023Started = false;
+      trendData.forEach((point, index) => {
+        if (point.year2023Users && point.year2023Users > 0) {
+          const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+          const y = height - padding.bottom - ((point.year2023Users - minValue) / valueRange) * chartHeight;
+          
+          // Store 2023 point data for hover detection (using display coordinates)
+          const displayX = padding.left + (index / (trendData.length - 1)) * chartWidth;
+          const displayY = height - padding.bottom - ((point.year2023Users - minValue) / valueRange) * chartHeight;
+          
+          dataPoints.push({
+            x: displayX, 
+            y: displayY, 
+            date: point.year2023Date || point.date,
+            formattedDate: point.year2023FormattedDate || point.formattedDate,
+            users: point.year2023Users,
+            year2023Users: point.year2023Users,
+            type: '2023'
+          });
+          
+          if (!year2023Started) {
+            ctx.moveTo(x, y);
+            year2023Started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      });
+      
+      if (year2023Started) {
+        ctx.stroke();
+      }
+    }
+    
+    // Draw data points
+    dataPoints.forEach(point => {
+      ctx.beginPath();
+      
+      // Check if this point is being hovered
+      const isHovered = canvas.hoveredPoint === point;
+      
+      if (isHovered) {
+        // Highlight hovered point
+        if (point.type === 'yoy') {
+          ctx.fillStyle = '#6d28d9';
+        } else if (point.type === '2023') {
+          ctx.fillStyle = '#d97706';
+        } else {
+          ctx.fillStyle = '#1d4ed8';
+        }
+        ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI);
+      } else {
+        if (point.type === 'yoy') {
+          ctx.fillStyle = '#8b5cf6';
+        } else if (point.type === '2023') {
+          ctx.fillStyle = '#f59e0b';
+        } else {
+          ctx.fillStyle = '#3b82f6';
+        }
+        ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+      }
+      ctx.fill();
+    });
+    
+    // Add labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    
+    // X-axis labels (dates) - show fewer labels and rotate for better spacing
+    ctx.font = '10px sans-serif';
+    trendData.forEach((point, index) => {
+      if (index % 3 === 0 || index === trendData.length - 1) { // Show every 3rd date plus the last date
+        const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+        
+        // Save context for each label
+        ctx.save();
+        ctx.translate(x, height - padding.bottom + 35);
+        ctx.rotate(-Math.PI / 6); // -30 degrees
+        ctx.textAlign = 'right';
+        ctx.fillText(point.formattedDate, 0, 0);
+        ctx.restore(); // Restore transformation for each label
+      }
+    });
+    
+    // Y-axis labels (values)
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'right';
+    const steps = 4;
+    for (let i = 0; i <= steps; i++) {
+      const value = minValue + (valueRange * i / steps);
+      const y = height - padding.bottom - (i / steps) * chartHeight;
+      ctx.fillText(Math.round(value).toLocaleString(), padding.left - 10, y + 4);
+    }
+    
+    // Store data points and trend data for hover functionality
+    canvas.dataPoints = dataPoints;
+    canvas.trendData = trendData;
+    canvas.hasYoYData = hasYoYData;
+    canvas.has2023Data = has2023Data;
+    
+    // Add hover functionality
+    setupChartHover(canvas);
+  }
+  
+  function redrawChart(canvas, trendData, hasYoYData = false, has2023Data = false) {
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size to match its display size for crisp rendering
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    
+    const width = rect.width;
+    const height = rect.height;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    // Chart layout with consistent padding (extra bottom padding for rotated labels)
+    const padding = { top: 40, right: 60, bottom: 100, left: 80 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+    
+    const values = trendData.map(d => d.users);
+    const yoyValues = hasYoYData ? trendData.map(d => d.yoyUsers || 0).filter(v => v > 0) : [];
+    const year2023Values = has2023Data ? trendData.map(d => d.year2023Users || 0).filter(v => v > 0) : [];
+    const allValues = [...values];
+    if (hasYoYData) allValues.push(...yoyValues);
+    if (has2023Data) allValues.push(...year2023Values);
+    const maxValue = Math.max(...allValues);
+    const minValue = Math.min(...allValues);
+    const valueRange = maxValue - minValue || 1;
+    
+    // Draw axes
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, padding.top);
+    ctx.lineTo(padding.left, height - padding.bottom);
+    ctx.lineTo(width - padding.right, height - padding.bottom);
+    ctx.stroke();
+    
+    // Draw current year trend line
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    
+    trendData.forEach((point, index) => {
+      const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+      const y = height - padding.bottom - ((point.users - minValue) / valueRange) * chartHeight;
+      
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    
+    // Draw YoY trend line if available
+    if (hasYoYData) {
+      ctx.strokeStyle = '#8b5cf6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      let yoyStarted = false;
+      trendData.forEach((point, index) => {
+        if (point.yoyUsers && point.yoyUsers > 0) {
+          const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+          const y = height - padding.bottom - ((point.yoyUsers - minValue) / valueRange) * chartHeight;
+          
+          if (!yoyStarted) {
+            ctx.moveTo(x, y);
+            yoyStarted = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      });
+      
+      if (yoyStarted) {
+        ctx.stroke();
+      }
+    }
+    
+    // Draw 2023 trend line if available
+    if (has2023Data) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      let year2023Started = false;
+      trendData.forEach((point, index) => {
+        if (point.year2023Users && point.year2023Users > 0) {
+          const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+          const y = height - padding.bottom - ((point.year2023Users - minValue) / valueRange) * chartHeight;
+          
+          if (!year2023Started) {
+            ctx.moveTo(x, y);
+            year2023Started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      });
+      
+      if (year2023Started) {
+        ctx.stroke();
+      }
+    }
+    
+    // Draw data points with hover highlighting
+    const dataPoints = canvas.dataPoints || [];
+    dataPoints.forEach(point => {
+      ctx.beginPath();
+      
+      // Check if this point is being hovered
+      const isHovered = canvas.hoveredPoint === point;
+      
+      if (isHovered) {
+        // Highlight hovered point
+        if (point.type === 'yoy') {
+          ctx.fillStyle = '#6d28d9';
+        } else if (point.type === '2023') {
+          ctx.fillStyle = '#d97706';
+        } else {
+          ctx.fillStyle = '#1d4ed8';
+        }
+        ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI);
+      } else {
+        if (point.type === 'yoy') {
+          ctx.fillStyle = '#8b5cf6';
+        } else if (point.type === '2023') {
+          ctx.fillStyle = '#f59e0b';
+        } else {
+          ctx.fillStyle = '#3b82f6';
+        }
+        ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+      }
+      ctx.fill();
+    });
+    
+    // Add labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    
+    // X-axis labels (dates) - show fewer labels and rotate for better spacing
+    ctx.font = '10px sans-serif';
+    trendData.forEach((point, index) => {
+      if (index % 3 === 0 || index === trendData.length - 1) { // Show every 3rd date plus the last date
+        const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+        
+        // Save context for each label
+        ctx.save();
+        ctx.translate(x, height - padding.bottom + 35);
+        ctx.rotate(-Math.PI / 6); // -30 degrees
+        ctx.textAlign = 'right';
+        ctx.fillText(point.formattedDate, 0, 0);
+        ctx.restore(); // Restore transformation for each label
+      }
+    });
+    
+    // Y-axis labels (values)
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'right';
+    const steps = 4;
+    for (let i = 0; i <= steps; i++) {
+      const value = minValue + (valueRange * i / steps);
+      const y = height - padding.bottom - (i / steps) * chartHeight;
+      ctx.fillText(Math.round(value).toLocaleString(), padding.left - 10, y + 4);
+    }
+  }
+  
+  function setupChartHover(canvas) {
+    const tooltip = document.getElementById('chart-tooltip');
+    const tooltipContent = document.getElementById('tooltip-content');
+    
+    if (!tooltip || !tooltipContent) return;
+    
+    // Remove existing event listeners to avoid duplicates
+    canvas.removeEventListener('mousemove', handleMouseMove);
+    canvas.removeEventListener('mouseleave', handleMouseLeave);
+    
+    function handleMouseMove(event) {
+      const rect = canvas.getBoundingClientRect();
+      
+      // Use actual mouse coordinates relative to the canvas display size
+      const mouseX = (event.clientX - rect.left);
+      const mouseY = (event.clientY - rect.top);
+      
+      // Find the closest data point
+      const dataPoints = canvas.dataPoints || [];
+      let closestPoint = null;
+      let minDistance = Infinity;
+      
+      dataPoints.forEach(point => {
+        const distance = Math.sqrt(
+          Math.pow(mouseX - point.x, 2) + Math.pow(mouseY - point.y, 2)
+        );
+        
+        if (distance < 15 && distance < minDistance) { // 15px hover radius
+          minDistance = distance;
+          closestPoint = point;
+        }
+      });
+      
+      if (closestPoint) {
+        // Only update if hovering a different point
+        if (canvas.hoveredPoint !== closestPoint) {
+          canvas.hoveredPoint = closestPoint;
+          
+          // Redraw chart with highlighting
+          const trendData = canvas.trendData;
+          const hasYoYData = canvas.hasYoYData;
+          const has2023Data = canvas.has2023Data;
+          if (trendData) {
+            redrawChart(canvas, trendData, hasYoYData, has2023Data);
+          }
+        }
+        
+        // Show tooltip
+        if (closestPoint.type === 'yoy') {
+          tooltipContent.innerHTML = `
+            <div class="font-semibold">${closestPoint.formattedDate}</div>
+            <div class="text-purple-300">${closestPoint.users.toLocaleString()} DAU</div>
+            <div class="text-gray-300 text-xs">2024 data</div>
+          `;
+        } else if (closestPoint.type === '2023') {
+          tooltipContent.innerHTML = `
+            <div class="font-semibold">${closestPoint.formattedDate}</div>
+            <div class="text-yellow-300">${closestPoint.users.toLocaleString()} DAU</div>
+            <div class="text-gray-300 text-xs">2023 data</div>
+          `;
+        } else {
+          // Find corresponding YoY and 2023 data if available
+          const yoyPoint = canvas.dataPoints?.find(p => 
+            p.type === 'yoy' && 
+            Math.abs(p.x - closestPoint.x) < 5 // Same x position
+          );
+          const year2023Point = canvas.dataPoints?.find(p => 
+            p.type === '2023' && 
+            Math.abs(p.x - closestPoint.x) < 5 // Same x position
+          );
+          
+          tooltipContent.innerHTML = `
+            <div class="font-semibold">${closestPoint.formattedDate}</div>
+            <div class="text-blue-300">${closestPoint.users.toLocaleString()} DAU (2025)</div>
+            ${yoyPoint ? `<div class="text-purple-300 mt-1">${yoyPoint.users.toLocaleString()} DAU (2024)</div>` : ''}
+            ${year2023Point ? `<div class="text-yellow-300">${year2023Point.users.toLocaleString()} DAU (2023)</div>` : ''}
+            ${yoyPoint ? `<div class="text-gray-300 text-xs mt-1">vs 2024: ${((closestPoint.users - yoyPoint.users) / yoyPoint.users * 100).toFixed(1)}%</div>` : ''}
+            ${year2023Point ? `<div class="text-gray-300 text-xs">vs 2023: ${((closestPoint.users - year2023Point.users) / year2023Point.users * 100).toFixed(1)}%</div>` : ''}
+          `;
+        }
+        
+        // Position tooltip
+        tooltip.style.left = `${event.clientX - rect.left + 10}px`;
+        tooltip.style.top = `${event.clientY - rect.top - 10}px`;
+        tooltip.style.opacity = '1';
+        
+        // Change cursor
+        canvas.style.cursor = 'pointer';
+      } else {
+        // Only update if we were hovering something
+        if (canvas.hoveredPoint !== null) {
+          canvas.hoveredPoint = null;
+          
+          // Redraw chart without highlighting
+          const trendData = canvas.trendData;
+          const hasYoYData = canvas.hasYoYData;
+          const has2023Data = canvas.has2023Data;
+          if (trendData) {
+            redrawChart(canvas, trendData, hasYoYData, has2023Data);
+          }
+        }
+        
+        // Hide tooltip
+        tooltip.style.opacity = '0';
+        canvas.style.cursor = 'crosshair';
+      }
+    }
+    
+    function handleMouseLeave() {
+      tooltip.style.opacity = '0';
+      canvas.style.cursor = 'crosshair';
+      
+      // Reset hover state and redraw
+      if (canvas.hoveredPoint !== null) {
+        canvas.hoveredPoint = null;
+        const trendData = canvas.trendData;
+        const hasYoYData = canvas.hasYoYData;
+        const has2023Data = canvas.has2023Data;
+        if (trendData) {
+          redrawChart(canvas, trendData, hasYoYData, has2023Data);
+        }
+      }
+    }
+    
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
+  }
+  
+  // Event listeners
+  const refreshButton = document.getElementById('refresh-dau');
+  if (refreshButton) {
+    refreshButton.addEventListener('click', () => loadDAUData(currentMonth, currentYear));
+  }
+  
+  // Month navigation
+  const prevButton = document.getElementById('prev-month');
+  const nextButton = document.getElementById('next-month');
+  
+  if (prevButton) {
+    prevButton.addEventListener('click', () => {
+      const newDate = new Date(currentYear, currentMonth - 2); // -2 because month is 1-based
+      loadDAUData(newDate.getMonth() + 1, newDate.getFullYear());
+    });
+  }
+  
+  if (nextButton) {
+    nextButton.addEventListener('click', () => {
+      const newDate = new Date(currentYear, currentMonth); // currentMonth is 1-based, so this goes to next month
+      const now = new Date();
+      
+      // Don't allow navigating beyond current month
+      if (newDate.getFullYear() < now.getFullYear() || 
+          (newDate.getFullYear() === now.getFullYear() && newDate.getMonth() <= now.getMonth())) {
+        loadDAUData(newDate.getMonth() + 1, newDate.getFullYear());
+      }
+    });
+  }
+  
+  // Auto-refresh every 5 minutes if enabled
+  const container = document.querySelector('[data-auto-refresh]');
+  const autoRefreshEnabled = container?.getAttribute('data-auto-refresh') === 'true';
+  if (autoRefreshEnabled) {
+    setInterval(() => loadDAUData(currentMonth, currentYear), 5 * 60 * 1000);
+  }
+  
+  // Load current month data on page load
+  loadDAUData();
+</script> 

@@ -1,0 +1,681 @@
+---
+export interface Props {
+  autoRefresh?: boolean;
+  title?: string;
+}
+
+const { autoRefresh = false, title = "Monthly Active Users Monitor" } = Astro.props;
+---
+
+<div class="bg-white rounded-lg shadow-lg p-6" data-auto-refresh={autoRefresh ? "true" : "false"}>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold text-gray-900">{title}</h2>
+    <div class="flex items-center space-x-4">
+      <div class="flex items-center space-x-2">
+        <div class="w-3 h-3 bg-blue-500 rounded"></div>
+        <span class="text-sm text-gray-600">2025</span>
+      </div>
+      <div class="flex items-center space-x-2">
+        <div class="w-3 h-3 bg-purple-500 rounded"></div>
+        <span class="text-sm text-gray-600">2024</span>
+      </div>
+      <div class="flex items-center space-x-2">
+        <div class="w-3 h-3 bg-yellow-500 rounded"></div>
+        <span class="text-sm text-gray-600">2023</span>
+      </div>
+      <button 
+        id="refresh-mau"
+        class="flex items-center space-x-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <div class="loading-spinner hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <svg class="refresh-icon w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        <span class="button-text">Refresh</span>
+      </button>
+      <div id="mau-refresh-indicator" class="hidden">
+        <div class="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Display -->
+  <div id="mau-error" class="hidden mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+    <div class="flex">
+      <div class="flex-shrink-0">
+        <svg class="w-5 h-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+        </svg>
+      </div>
+      <div class="ml-3">
+        <h3 class="text-sm font-medium text-red-800">Error Loading MAU Data</h3>
+        <div class="mt-2 text-sm text-red-700" id="mau-error-message"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="mau-loading" class="flex items-center justify-center h-64">
+    <div class="text-center">
+      <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p class="text-gray-600">Loading MAU data...</p>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div id="mau-content" class="hidden">
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-blue-600">Current MAU</p>
+            <p class="text-2xl font-bold text-blue-900" id="current-mau">--</p>
+          </div>
+          <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="mt-2">
+          <span class="text-xs" id="mau-change">--</span>
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-green-600">Average MAU in 12 Months</p>
+            <p class="text-2xl font-bold text-green-900" id="average-mau">--</p>
+          </div>
+          <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="mt-2">
+          <span class="text-xs" id="avg-yoy-change">--</span>
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-purple-600">Peak MAU in 12 Months</p>
+            <p class="text-2xl font-bold text-purple-900" id="peak-mau">--</p>
+          </div>
+          <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="mt-2">
+          <span class="text-xs text-purple-600">Highest in period</span>
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-orange-600">Low MAU in 12 Months</p>
+            <p class="text-2xl font-bold text-orange-900" id="low-mau">--</p>
+          </div>
+          <div class="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="mt-2">
+          <span class="text-xs text-orange-600">Lowest in period</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="bg-gray-50 rounded-lg p-4 relative">
+      <canvas 
+        id="mau-chart" 
+        class="w-full h-80 cursor-crosshair"
+      ></canvas>
+      <div id="mau-tooltip" class="absolute bg-gray-900 text-white text-sm rounded-lg px-3 py-2 pointer-events-none opacity-0 transition-opacity duration-200 z-10 whitespace-nowrap shadow-lg">
+        <div id="mau-tooltip-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface MAUTrendData {
+    date: string;
+    users: number;
+    yoyUsers: number | null;
+    year2023Users: number | null;
+    yoyDate: string | null;
+    year2023Date: string | null;
+    formattedDate: string;
+    yoyFormattedDate: string | null;
+    year2023FormattedDate: string | null;
+  }
+
+  interface MAUData {
+    currentMAU: number;
+    currentUsers: number;
+    yoyChangePercent: number;
+    avgUsers: number;
+    avgYoYChangePercent: number;
+    peakUsers: number;
+    lowUsers: number;
+    trend: MAUTrendData[];
+    anomaly: {
+      isAnomaly: boolean;
+      severity: 'low' | 'medium' | 'high';
+      percentageChange: number;
+      message: string;
+    };
+    hasYoYData: boolean;
+    has2023Data: boolean;
+    summary: {
+      totalMonths: number;
+      averageMAU: number;
+      maxMAU: number;
+      minMAU: number;
+    };
+    yoySummary: {
+      averageMAU: number;
+      maxMAU: number;
+      minMAU: number;
+      note: string;
+    } | null;
+    year2023Summary: {
+      averageMAU: number;
+      maxMAU: number;
+      minMAU: number;
+      note: string;
+    } | null;
+  }
+
+  async function loadMAUData() {
+    const errorDiv = document.getElementById('mau-error');
+    const errorMessage = document.getElementById('mau-error-message');
+    const loading = document.getElementById('mau-loading');
+    const content = document.getElementById('mau-content');
+    const refreshIndicator = document.getElementById('mau-refresh-indicator');
+    const refreshButton = document.getElementById('refresh-mau');
+    const buttonText = refreshButton?.querySelector('.button-text');
+    const loadingSpinner = refreshButton?.querySelector('.loading-spinner');
+    const refreshIcon = refreshButton?.querySelector('.refresh-icon');
+
+    // Show loading state
+    if (errorDiv) errorDiv.classList.add('hidden');
+    if (loading) loading.classList.remove('hidden');
+    if (content) content.classList.add('hidden');
+    if (refreshIndicator) refreshIndicator.classList.remove('hidden');
+    if (refreshButton) refreshButton.disabled = true;
+    if (buttonText) buttonText.textContent = 'Loading...';
+    if (loadingSpinner) loadingSpinner.classList.remove('hidden');
+    if (refreshIcon) refreshIcon.classList.add('hidden');
+
+    try {
+      const response = await fetch('/api/mau-monitor');
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to load MAU data');
+      }
+
+      const data: MAUData = result.data;
+      
+      // Hide loading, show content
+      if (loading) loading.classList.add('hidden');
+      if (content) content.classList.remove('hidden');
+      
+      // Update stats cards
+      updateMAUStats(data);
+      
+      // Draw chart
+      drawMAUChart(data.trend, data.hasYoYData, data.has2023Data);
+      
+    } catch (error) {
+      console.error('Error loading MAU data:', error);
+      
+      // Show error state
+      if (loading) loading.classList.add('hidden');
+      if (content) content.classList.add('hidden');
+      if (errorDiv) errorDiv.classList.remove('hidden');
+      if (errorMessage) {
+        errorMessage.textContent = error instanceof Error ? error.message : 'Unknown error';
+      }
+    } finally {
+      if (refreshIndicator) refreshIndicator.classList.add('hidden');
+      if (refreshButton) refreshButton.disabled = false;
+      if (buttonText) buttonText.textContent = 'Refresh';
+      if (loadingSpinner) loadingSpinner.classList.add('hidden');
+      if (refreshIcon) refreshIcon.classList.remove('hidden');
+    }
+  }
+
+  function updateMAUStats(data: MAUData) {
+    const formatChange = (value: number) => {
+      const sign = value >= 0 ? '+' : '';
+      return `${sign}${value.toFixed(1)}%`;
+    };
+
+    const getChangeColor = (value: number) => {
+      return value >= 0 ? 'text-green-600' : 'text-red-600';
+    };
+
+    // Current MAU
+    const currentMAUEl = document.getElementById('current-mau');
+    if (currentMAUEl) {
+      currentMAUEl.textContent = data.currentUsers.toLocaleString();
+    }
+
+    // Current MAU change vs 2024
+    const mauChangeEl = document.getElementById('mau-change');
+    if (mauChangeEl) {
+      mauChangeEl.textContent = `${formatChange(data.yoyChangePercent)} v. 2024`;
+      mauChangeEl.className = `text-xs ${getChangeColor(data.yoyChangePercent)}`;
+    }
+
+    // Average MAU in 12 Months
+    const averageMAUEl = document.getElementById('average-mau');
+    if (averageMAUEl) {
+      averageMAUEl.textContent = data.avgUsers.toLocaleString();
+    }
+
+    // Average MAU change vs 2024
+    const avgYoyChangeEl = document.getElementById('avg-yoy-change');
+    if (avgYoyChangeEl) {
+      avgYoyChangeEl.textContent = `${formatChange(data.avgYoYChangePercent)} v. 2024`;
+      avgYoyChangeEl.className = `text-xs ${getChangeColor(data.avgYoYChangePercent)}`;
+    }
+
+    // Peak MAU in 12 Months
+    const peakMAUEl = document.getElementById('peak-mau');
+    if (peakMAUEl) {
+      peakMAUEl.textContent = data.peakUsers.toLocaleString();
+    }
+
+    // Low MAU in 12 Months
+    const lowMAUEl = document.getElementById('low-mau');
+    if (lowMAUEl) {
+      lowMAUEl.textContent = data.lowUsers.toLocaleString();
+    }
+  }
+
+  function drawMAUChart(trendData: MAUTrendData[], hasYoYData: boolean, has2023Data: boolean = false) {
+    const canvas = document.getElementById('mau-chart') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set canvas size
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const width = rect.width;
+    const height = rect.height;
+    const padding = { top: 40, right: 60, bottom: 80, left: 80 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    if (trendData.length === 0) return;
+
+    // Calculate value range
+    const allValues = [...trendData.map(d => d.users)];
+    if (hasYoYData) {
+      allValues.push(...trendData.filter(d => d.yoyUsers).map(d => d.yoyUsers!));
+    }
+    if (has2023Data) {
+      allValues.push(...trendData.filter(d => d.year2023Users).map(d => d.year2023Users!));
+    }
+    const minValue = Math.min(...allValues) * 0.95;
+    const maxValue = Math.max(...allValues) * 1.05;
+    const valueRange = maxValue - minValue;
+
+    // Store data points for hover detection
+    const dataPoints: Array<{
+      x: number;
+      y: number;
+      date: string;
+      formattedDate: string;
+      users: number;
+      yoyUsers?: number;
+      type: 'current' | 'yoy';
+    }> = [];
+
+    // Note: Data points will be stored after they are populated
+
+    // Draw grid lines
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    
+    // Horizontal grid lines
+    for (let i = 0; i <= 5; i++) {
+      const y = padding.top + (i / 5) * chartHeight;
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(padding.left + chartWidth, y);
+      ctx.stroke();
+    }
+
+    // Current trend line
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    
+    trendData.forEach((point, index) => {
+      const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+      const y = padding.top + chartHeight - ((point.users - minValue) / valueRange) * chartHeight;
+      
+      // Store point data for hover detection
+      dataPoints.push({
+        x, y, 
+        date: point.date,
+        formattedDate: point.formattedDate,
+        users: point.users,
+        yoyUsers: point.yoyUsers || undefined,
+        type: 'current'
+      });
+      
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+
+    // YoY trend line if available
+    if (hasYoYData) {
+      ctx.strokeStyle = '#8b5cf6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      let yoyStarted = false;
+      trendData.forEach((point, index) => {
+        if (point.yoyUsers && point.yoyUsers > 0) {
+          const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+          const y = padding.top + chartHeight - ((point.yoyUsers - minValue) / valueRange) * chartHeight;
+          
+          // Store YoY point data for hover detection
+          dataPoints.push({
+            x, y, 
+            date: point.yoyDate || point.date,
+            formattedDate: point.yoyFormattedDate || point.formattedDate,
+            users: point.yoyUsers,
+            yoyUsers: point.yoyUsers,
+            type: 'yoy'
+          });
+          
+          if (!yoyStarted) {
+            ctx.moveTo(x, y);
+            yoyStarted = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      });
+      
+      if (yoyStarted) {
+        ctx.stroke();
+      }
+    }
+
+    // 2023 trend line if available
+    if (has2023Data) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      let year2023Started = false;
+      trendData.forEach((point, index) => {
+        if (point.year2023Users && point.year2023Users > 0) {
+          const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+          const y = padding.top + chartHeight - ((point.year2023Users - minValue) / valueRange) * chartHeight;
+          
+          // Store 2023 point data for hover detection
+          dataPoints.push({
+            x, y, 
+            date: point.year2023Date || point.date,
+            formattedDate: point.year2023FormattedDate || point.formattedDate,
+            users: point.year2023Users,
+            type: '2023' as any
+          });
+          
+          if (!year2023Started) {
+            ctx.moveTo(x, y);
+            year2023Started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      });
+      
+      if (year2023Started) {
+        ctx.stroke();
+      }
+    }
+
+    // Draw data points with hover highlighting
+    dataPoints.forEach(point => {
+      ctx.beginPath();
+      
+      // Check if this point is being hovered
+      const isHovered = (canvas as any).hoveredPoint === point;
+      
+      if (isHovered) {
+        // Highlight hovered point
+        if (point.type === 'yoy') {
+          ctx.fillStyle = '#6d28d9';
+        } else if (point.type === '2023') {
+          ctx.fillStyle = '#d97706';
+        } else {
+          ctx.fillStyle = '#1d4ed8';
+        }
+        ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI);
+      } else {
+        if (point.type === 'yoy') {
+          ctx.fillStyle = '#8b5cf6';
+        } else if (point.type === '2023') {
+          ctx.fillStyle = '#f59e0b';
+        } else {
+          ctx.fillStyle = '#3b82f6';
+        }
+        ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+      }
+      ctx.fill();
+    });
+
+    // Add labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    
+    // X-axis labels (dates) - show every other month to avoid crowding
+    trendData.forEach((point, index) => {
+      if (index % 2 === 0) {
+        const x = padding.left + (index / (trendData.length - 1)) * chartWidth;
+        ctx.fillText(point.formattedDate, x, height - padding.bottom + 20);
+      }
+    });
+    
+    // Y-axis labels (values)
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 5; i++) {
+      const value = minValue + (i / 5) * valueRange;
+      const y = padding.top + chartHeight - (i / 5) * chartHeight;
+      ctx.fillText(Math.round(value).toLocaleString(), padding.left - 10, y + 4);
+    }
+
+    // Chart title
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Monthly Active Users Trend', width / 2, 25);
+    
+    // Store data for hover detection (after all points have been added)
+    (canvas as any).dataPoints = dataPoints;
+    (canvas as any).trendData = trendData;
+    (canvas as any).hasYoYData = hasYoYData;
+    (canvas as any).has2023Data = has2023Data;
+    
+    console.log(`MAU chart: stored ${dataPoints.length} data points for tooltips`);
+  }
+
+  // Mouse interaction for tooltips
+  function setupMAUTooltip() {
+    const canvas = document.getElementById('mau-chart') as HTMLCanvasElement;
+    const tooltip = document.getElementById('mau-tooltip');
+    const tooltipContent = document.getElementById('mau-tooltip-content');
+    
+    if (!canvas || !tooltip || !tooltipContent) {
+      console.log('MAU tooltip setup failed:', { canvas: !!canvas, tooltip: !!tooltip, tooltipContent: !!tooltipContent });
+      return;
+    }
+    
+    console.log('MAU tooltip setup successful');
+    
+    // Remove existing event listeners to avoid duplicates
+    const handleMouseMove = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      
+      const dataPoints = (canvas as any).dataPoints || [];
+      
+      if (dataPoints.length === 0) {
+        console.log('MAU: No data points available for tooltip');
+        return;
+      }
+      const hasYoYData = (canvas as any).hasYoYData || false;
+      
+      // Find closest point
+      let closestPoint = null;
+      let closestDistance = Infinity;
+      
+      dataPoints.forEach((point) => {
+        const distance = Math.sqrt((x - point.x) ** 2 + (y - point.y) ** 2);
+        if (distance < 20 && distance < closestDistance) {
+          closestDistance = distance;
+          closestPoint = point;
+        }
+      });
+      
+      if (closestPoint) {
+        // Update hovered point for highlighting
+        (canvas as any).hoveredPoint = closestPoint;
+        
+        // Redraw chart with highlight
+        const trendData = (canvas as any).trendData;
+        if (trendData) {
+          drawMAUChart(trendData, hasYoYData, canvas.has2023Data);
+        }
+        
+        // Show tooltip
+        if (closestPoint.type === 'yoy') {
+          tooltipContent.innerHTML = `
+            <div class="font-semibold">${closestPoint.formattedDate}</div>
+            <div class="text-purple-300">${closestPoint.users.toLocaleString()} MAU</div>
+            <div class="text-gray-300 text-xs">2024 data</div>
+          `;
+        } else if (closestPoint.type === '2023') {
+          tooltipContent.innerHTML = `
+            <div class="font-semibold">${closestPoint.formattedDate}</div>
+            <div class="text-yellow-300">${closestPoint.users.toLocaleString()} MAU</div>
+            <div class="text-gray-300 text-xs">2023 data</div>
+          `;
+        } else {
+          // Find corresponding YoY and 2023 data if available
+          const yoyPoint = dataPoints.find((p) => 
+            p.type === 'yoy' && 
+            Math.abs(p.x - closestPoint.x) < 5 // Same x position
+          );
+          const year2023Point = dataPoints.find((p) => 
+            p.type === '2023' && 
+            Math.abs(p.x - closestPoint.x) < 5 // Same x position
+          );
+          
+          tooltipContent.innerHTML = `
+            <div class="font-semibold">${closestPoint.formattedDate}</div>
+            <div class="text-blue-300">${closestPoint.users.toLocaleString()} MAU (2025)</div>
+            ${yoyPoint ? `<div class="text-purple-300 mt-1">${yoyPoint.users.toLocaleString()} MAU (2024)</div>` : ''}
+            ${year2023Point ? `<div class="text-yellow-300">${year2023Point.users.toLocaleString()} MAU (2023)</div>` : ''}
+            ${yoyPoint ? `<div class="text-gray-300 text-xs mt-1">vs 2024: ${((closestPoint.users - yoyPoint.users) / yoyPoint.users * 100).toFixed(1)}%</div>` : ''}
+            ${year2023Point ? `<div class="text-gray-300 text-xs">vs 2023: ${((closestPoint.users - year2023Point.users) / year2023Point.users * 100).toFixed(1)}%</div>` : ''}
+          `;
+        }
+        
+        // Position tooltip
+        tooltip.style.left = `${event.clientX - rect.left + 10}px`;
+        tooltip.style.top = `${event.clientY - rect.top - 10}px`;
+        tooltip.classList.remove('opacity-0');
+      } else {
+        // Clear hover state
+        (canvas as any).hoveredPoint = null;
+        
+        // Redraw without highlight
+        const trendData = (canvas as any).trendData;
+        if (trendData) {
+          drawMAUChart(trendData, hasYoYData, (canvas as any).has2023Data);
+        }
+        
+        // Hide tooltip
+        tooltip.classList.add('opacity-0');
+      }
+    };
+    
+    const handleMouseLeave = () => {
+      // Clear hover state
+      (canvas as any).hoveredPoint = null;
+      
+      // Redraw without highlight
+      const trendData = (canvas as any).trendData;
+      const hasYoYData = (canvas as any).hasYoYData || false;
+      if (trendData) {
+        drawMAUChart(trendData, hasYoYData, (canvas as any).has2023Data);
+      }
+      
+      // Hide tooltip
+      tooltip.classList.add('opacity-0');
+    };
+    
+    // Remove existing listeners to prevent duplicates
+    canvas.removeEventListener('mousemove', handleMouseMove);
+    canvas.removeEventListener('mouseleave', handleMouseLeave);
+    
+    // Add event listeners
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
+  }
+
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    loadMAUData();
+    setupMAUTooltip();
+    
+    // Setup refresh button
+    const refreshButton = document.getElementById('refresh-mau');
+    if (refreshButton) {
+      refreshButton.addEventListener('click', loadMAUData);
+    }
+    
+    // Auto-refresh if enabled
+    const autoRefreshEnabled = document.querySelector('[data-auto-refresh="true"]');
+    if (autoRefreshEnabled) {
+      setInterval(loadMAUData, 5 * 60 * 1000);
+    }
+  });
+</script> 

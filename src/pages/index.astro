@@ -1,0 +1,129 @@
+---
+import TestResults from '../components/TestResults.astro';
+import DAUMonitor from '../components/DAUMonitor.astro';
+import WAUMonitor from '../components/WAUMonitor.astro';
+import MAUMonitor from '../components/MAUMonitor.astro';
+
+const title = 'Amplitude Monitoring Agent';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Monitor Amplitude metrics and detect anomalies" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+      <!-- Header -->
+      <header class="text-center mb-8">
+        <h1 class="text-4xl font-bold text-gray-900 mb-2">
+          Amplitude Monitoring Agent
+        </h1>
+        <p class="text-lg text-gray-600 max-w-2xl mx-auto">
+          Real-time monitoring and anomaly detection for your Amplitude analytics across multiple time periods.
+        </p>
+      </header>
+
+      <!-- Active User Monitoring -->
+      <div class="space-y-8 mb-12">
+        <!-- DAU Monitor -->
+        <div>
+          <DAUMonitor autoRefresh={true} title="Daily Active Users (Last 15 Days)" />
+        </div>
+
+        <!-- WAU Monitor -->
+        <div>
+          <WAUMonitor autoRefresh={true} title="Weekly Active Users (Last 12 Weeks)" />
+        </div>
+
+        <!-- MAU Monitor -->
+        <div>
+          <MAUMonitor autoRefresh={true} title="Monthly Active Users (Last 12 Months)" />
+        </div>
+      </div>
+
+      <!-- Collapsible Test Section -->
+      <div class="max-w-4xl mx-auto mb-8">
+        <details class="bg-white rounded-lg shadow">
+          <summary class="cursor-pointer p-4 font-medium text-gray-900 hover:bg-gray-50 rounded-lg">
+            🔧 MCP Connection Tests (Advanced)
+          </summary>
+          <div class="border-t border-gray-200 p-4">
+            <TestResults />
+          </div>
+        </details>
+      </div>
+
+      <!-- Next Steps -->
+      <div class="max-w-4xl mx-auto">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">Monitoring Features</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center mb-4">
+              <div class="flex-shrink-0">
+                <svg class="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012-2m0 0V5a2 2 0 012-2h2a2 2 0 012-2"></path>
+                </svg>
+              </div>
+              <h3 class="ml-3 text-lg font-medium text-gray-900">DAU Monitoring</h3>
+            </div>
+            <p class="text-gray-600 text-sm">
+              ✅ <strong>Active:</strong> Daily active user tracking with YoY comparison, hover tooltips, and anomaly detection.
+            </p>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center mb-4">
+              <div class="flex-shrink-0">
+                <svg class="h-8 w-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                </svg>
+              </div>
+              <h3 class="ml-3 text-lg font-medium text-gray-900">WAU Monitoring</h3>
+            </div>
+            <p class="text-gray-600 text-sm">
+              ✅ <strong>Active:</strong> Weekly active user tracking over 12 weeks with YoY comparison and trend analysis.
+            </p>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center mb-4">
+              <div class="flex-shrink-0">
+                <svg class="h-8 w-8 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+              </div>
+              <h3 class="ml-3 text-lg font-medium text-gray-900">MAU Monitoring</h3>
+            </div>
+            <p class="text-gray-600 text-sm">
+              ✅ <strong>Active:</strong> Monthly active user tracking over 12 months with long-term trend analysis.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configuration Notice -->
+      <div class="mt-8 max-w-4xl mx-auto">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-blue-800">Auto-Refresh Active</h3>
+              <div class="mt-2 text-sm text-blue-700">
+                <p>All monitoring dashboards (DAU, WAU, MAU) refresh automatically every 5 minutes. Manual refresh available anytime.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html> 

@@ -1,0 +1,631 @@
+---
+export interface Props {
+  autoRefresh?: boolean;
+  title?: string;
+}
+
+const { autoRefresh = false, title = "Weekly Active Users (Last 12 Weeks)" } = Astro.props;
+---
+
+<div class="bg-white rounded-lg shadow-lg p-6" data-auto-refresh={autoRefresh ? "true" : "false"}>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold text-gray-900">{title}</h2>
+    <div class="flex items-center space-x-4">
+      <!-- Legend -->
+      <div id="wau-chart-legend" class="flex items-center space-x-4 text-sm">
+        <div class="flex items-center">
+          <div class="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+          <span id="wau-current-year-label">2025</span>
+        </div>
+        <div id="wau-yoy-legend" class="flex items-center">
+          <div class="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
+          <span id="wau-yoy-year-label">2024</span>
+        </div>
+        <div id="wau-year2023-legend" class="flex items-center">
+          <div class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+          <span id="wau-year2023-label">2023</span>
+        </div>
+      </div>
+      <button 
+        id="refresh-wau"
+        class="flex items-center space-x-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <div class="loading-spinner hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <svg class="refresh-icon w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        <span class="button-text">Refresh</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Error Display -->
+  <div id="wau-error" class="hidden mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+    <div class="flex">
+      <div class="flex-shrink-0">
+        <svg class="w-5 h-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+        </svg>
+      </div>
+      <div class="ml-3">
+        <h3 class="text-sm font-medium text-red-800">Error Loading WAU Data</h3>
+        <div class="mt-2 text-sm text-red-700" id="wau-error-message"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="wau-loading" class="flex items-center justify-center h-64">
+    <div class="text-center">
+      <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p class="text-gray-600">Loading WAU data...</p>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div id="wau-content" class="hidden">
+    <!-- Stats Cards -->
+    <div id="wau-current-stats" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"></div>
+
+    <!-- Chart -->
+    <div class="mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">12-Week Trend</h3>
+      </div>
+      <div class="bg-gray-50 rounded-lg p-4 relative">
+        <canvas 
+          id="wau-chart" 
+          class="w-full h-80 cursor-crosshair"
+        ></canvas>
+        <div id="wau-chart-tooltip" class="absolute bg-gray-900 text-white text-sm rounded-lg px-3 py-2 pointer-events-none opacity-0 transition-opacity duration-200 z-10 whitespace-nowrap shadow-lg">
+          <div id="wau-tooltip-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div id="wau-status-container" class="text-center py-4">
+      <div class="text-gray-500">WAU data loaded successfully</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface WAUData {
+    currentUsers: number;
+    weekOverWeekChange: number;
+    yoyUsers: number;
+    yoyChangePercent: number;
+    year2023Users: number;
+    year2023ChangePercent: number;
+    avgUsers: number;
+    avgYoYChangePercent: number;
+    peakUsers: number;
+    lowUsers: number;
+    status: string;
+    statusMessage: string;
+    trendData: WAUTrendData[];
+    xValues: string[];
+  }
+
+  interface WAUTrendData {
+    date: string;
+    formattedDate: string;
+    users: number;
+    yoyUsers: number;
+    year2023Users: number;
+    yoyChange: string | null;
+    year2023Change: string | null;
+  }
+
+  let wauChart: HTMLCanvasElement | null = null;
+  
+  async function loadWAUData() {
+    const refreshButton = document.getElementById('refresh-wau') as HTMLButtonElement;
+    const buttonText = refreshButton?.querySelector('.button-text') as HTMLElement;
+    const loadingSpinner = refreshButton?.querySelector('.loading-spinner') as HTMLElement;
+    const wauLoading = document.getElementById('wau-loading') as HTMLElement;
+    const wauContent = document.getElementById('wau-content') as HTMLElement;
+    const wauError = document.getElementById('wau-error') as HTMLElement;
+    
+    // Show loading state
+    if (refreshButton) refreshButton.disabled = true;
+    if (buttonText) buttonText.textContent = 'Loading...';
+    if (loadingSpinner) loadingSpinner.classList.remove('hidden');
+    wauLoading?.classList.remove('hidden');
+    wauContent?.classList.add('hidden');
+    wauError?.classList.add('hidden');
+    
+    try {
+      const response = await fetch('/api/wau-monitor');
+      const result = await response.json();
+      
+      if (result.success) {
+        updateWAUStats(result.data);
+        drawWAUChart(result.data);
+        
+        wauLoading?.classList.add('hidden');
+        wauContent?.classList.remove('hidden');
+      } else {
+        throw new Error(result.error || 'Failed to load WAU data');
+      }
+    } catch (error) {
+      console.error('Error loading WAU data:', error);
+      showWAUError(error instanceof Error ? error.message : 'Unknown error occurred');
+      wauLoading?.classList.add('hidden');
+      wauContent?.classList.add('hidden');
+    } finally {
+      // Restore button state
+      if (refreshButton) refreshButton.disabled = false;
+      if (buttonText) buttonText.textContent = 'Refresh';
+      if (loadingSpinner) loadingSpinner.classList.add('hidden');
+    }
+  }
+
+  function showWAUError(message: string) {
+    const wauError = document.getElementById('wau-error') as HTMLElement;
+    const wauErrorMessage = document.getElementById('wau-error-message') as HTMLElement;
+    
+    if (wauErrorMessage) wauErrorMessage.textContent = message;
+    wauError?.classList.remove('hidden');
+  }
+
+  function updateWAUStats(data: WAUData) {
+    const statsContainer = document.getElementById('wau-current-stats') as HTMLElement;
+    if (!statsContainer) return;
+
+    // Legend items are always visible to show all three years
+
+    const formatChange = (change: number | null) => {
+      if (change === null) return '--';
+      const sign = change >= 0 ? '+' : '';
+      return `${sign}${change.toFixed(1)}%`;
+    };
+
+    const getChangeColor = (change: number | null) => {
+      if (change === null) return 'text-gray-500';
+      return change >= 0 ? 'text-green-600' : 'text-red-600';
+    };
+
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case 'HIGH': return 'text-green-600';
+        case 'NORMAL': return 'text-blue-600';
+        case 'ALERT': return 'text-yellow-600';
+        case 'LOW': return 'text-red-600';
+        default: return 'text-gray-600';
+      }
+    };
+
+    const getStatusBgColor = (status: string) => {
+      switch (status) {
+        case 'HIGH': return 'bg-green-500';
+        case 'NORMAL': return 'bg-blue-500';
+        case 'ALERT': return 'bg-yellow-500';
+        case 'LOW': return 'bg-red-500';
+        default: return 'bg-gray-500';
+      }
+    };
+
+    const getStatusIcon = (status: string) => {
+      switch (status) {
+        case 'HIGH': 
+          return '<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>';
+        case 'NORMAL': 
+          return '<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+        case 'ALERT': 
+          return '<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>';
+        case 'LOW': 
+          return '<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"></path></svg>';
+        default: 
+          return '<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+      }
+    };
+
+    const getStatusChange = (data: WAUData) => {
+      const changeFromAvg = ((data.currentUsers - data.avgUsers) / data.avgUsers) * 100;
+      const sign = changeFromAvg >= 0 ? '+' : '';
+      return `${sign}${changeFromAvg.toFixed(1)}%`;
+    };
+
+    statsContainer.innerHTML = `
+      <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-blue-600">Current WAU</p>
+            <p class="text-2xl font-bold text-blue-900">${data.currentUsers.toLocaleString()}</p>
+          </div>
+          <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="mt-2">
+          <span class="text-xs ${getChangeColor(data.yoyChangePercent)}">${formatChange(data.yoyChangePercent)} v. 2024</span>
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-green-600">Average WAUs in 12 Weeks</p>
+            <p class="text-2xl font-bold text-green-900">${data.avgUsers.toLocaleString()}</p>
+          </div>
+          <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="mt-2">
+          <span class="text-xs ${getChangeColor(data.avgYoYChangePercent)}">${formatChange(data.avgYoYChangePercent)} v. 2024</span>
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-purple-600">Peak WAU in 12 Weeks</p>
+            <p class="text-2xl font-bold text-purple-900">${data.peakUsers.toLocaleString()}</p>
+          </div>
+          <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="mt-2">
+          <span class="text-xs text-purple-600">Highest in period</span>
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-orange-600">Low WAU in 12 Weeks</p>
+            <p class="text-2xl font-bold text-orange-900">${data.lowUsers.toLocaleString()}</p>
+          </div>
+          <div class="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="mt-2">
+          <span class="text-xs text-orange-600">Lowest in period</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function drawWAUChart(data: WAUData) {
+    const canvas = document.getElementById('wau-chart') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set canvas size accounting for device pixel ratio
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    // Clear canvas
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    const trendData = data.trendData;
+    if (!trendData || trendData.length === 0) return;
+
+    // Chart dimensions
+    const padding = 60;
+    const chartWidth = rect.width - padding * 2;
+    const chartHeight = rect.height - padding * 2;
+
+    // Find data range
+    const allValues = trendData.flatMap(d => [
+      d.users,
+      d.yoyUsers || 0,
+      d.year2023Users || 0
+    ]).filter(v => v > 0);
+    
+    if (allValues.length === 0) return;
+    
+    const yMax = Math.max(...allValues) * 1.1; // Add 10% padding
+    const yMin = Math.min(...allValues) * 0.9; // Add 10% padding below
+
+    // Helper functions
+    const getX = (index: number) => padding + (index / (trendData.length - 1)) * chartWidth;
+    const getY = (value: number) => padding + chartHeight - ((value - yMin) / (yMax - yMin)) * chartHeight;
+
+    // Draw grid
+    ctx.strokeStyle = '#f3f4f6';
+    ctx.lineWidth = 1;
+    
+    // Horizontal grid lines
+    for (let i = 0; i <= 5; i++) {
+      const y = padding + (i / 5) * chartHeight;
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(padding + chartWidth, y);
+      ctx.stroke();
+    }
+
+    // Draw lines and data points
+    const dataPoints: any[] = [];
+    
+    // Current year line (2025) - thick blue line
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    trendData.forEach((point, index) => {
+      const x = getX(index);
+      const y = getY(point.users);
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+      
+      // Store data point for interaction
+      dataPoints.push({
+        x, y,
+        users: point.users,
+        yoyUsers: point.yoyUsers,
+        year2023Users: point.year2023Users,
+        formattedDate: point.formattedDate,
+        type: 'current'
+      });
+    });
+    ctx.stroke();
+
+    // YoY line (2024) - purple line
+    if (trendData.some(d => d.yoyUsers > 0)) {
+      ctx.strokeStyle = '#8b5cf6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      trendData.forEach((point, index) => {
+        if (point.yoyUsers > 0) {
+          const x = getX(index);
+          const y = getY(point.yoyUsers);
+          if (index === 0 || trendData[index - 1]?.yoyUsers === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+          
+          // Store YoY data point
+          dataPoints.push({
+            x, y,
+            users: point.users,
+            yoyUsers: point.yoyUsers,
+            year2023Users: point.year2023Users,
+            formattedDate: point.formattedDate,
+            type: 'yoy'
+          });
+        }
+      });
+      ctx.stroke();
+    }
+
+    // 2023 line - yellow line
+    if (trendData.some(d => d.year2023Users > 0)) {
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      trendData.forEach((point, index) => {
+        if (point.year2023Users > 0) {
+          const x = getX(index);
+          const y = getY(point.year2023Users);
+          if (index === 0 || trendData[index - 1]?.year2023Users === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+          
+          // Store 2023 data point
+          dataPoints.push({
+            x, y,
+            users: point.users,
+            yoyUsers: point.yoyUsers,
+            year2023Users: point.year2023Users,
+            formattedDate: point.formattedDate,
+            type: '2023'
+          });
+        }
+      });
+      ctx.stroke();
+    }
+
+    // Draw data points
+    trendData.forEach((point, index) => {
+      const x = getX(index);
+      
+      // Current year points (blue)
+      if (point.users > 0) {
+        const y = getY(point.users);
+        ctx.fillStyle = (canvas as any).hoveredPoint?.x === x && (canvas as any).hoveredPoint?.type === 'current' ? '#1d4ed8' : '#3b82f6';
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      
+      // YoY points (purple)
+      if (point.yoyUsers > 0) {
+        const y = getY(point.yoyUsers);
+        ctx.fillStyle = (canvas as any).hoveredPoint?.x === x && (canvas as any).hoveredPoint?.type === 'yoy' ? '#7c3aed' : '#8b5cf6';
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      
+      // 2023 points (yellow)
+      if (point.year2023Users > 0) {
+        const y = getY(point.year2023Users);
+        ctx.fillStyle = (canvas as any).hoveredPoint?.x === x && (canvas as any).hoveredPoint?.type === '2023' ? '#ca8a04' : '#eab308';
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    });
+
+    // Store data points on canvas for tooltip
+    (canvas as any).dataPoints = dataPoints;
+    (canvas as any).trendData = data;
+
+    // Y-axis labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 5; i++) {
+      const value = yMin + ((yMax - yMin) / 5) * (5 - i);
+      const y = padding + (i / 5) * chartHeight;
+      ctx.fillText(Math.round(value / 1000) + 'K', padding - 10, y + 4);
+    }
+
+    // X-axis labels (show every few weeks to avoid crowding)
+    ctx.textAlign = 'center';
+    trendData.forEach((point, index) => {
+      if (index % 2 === 0 || index === trendData.length - 1) { // Show every other week + last week
+        const x = getX(index);
+        const shortDate = new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        ctx.fillText(shortDate, x, padding + chartHeight + 20);
+      }
+    });
+
+    // Chart title
+    ctx.fillStyle = '#111827';
+    ctx.font = 'bold 14px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('Weekly Active Users - 12 Week Trend', rect.width / 2, 30);
+  }
+
+  // Event handlers for tooltip
+  function setupWAUTooltip() {
+    const canvas = document.getElementById('wau-chart') as HTMLCanvasElement;
+    const tooltip = document.getElementById('wau-chart-tooltip') as HTMLElement;
+    const tooltipContent = document.getElementById('wau-tooltip-content') as HTMLElement;
+    
+    if (!canvas || !tooltip || !tooltipContent) return;
+
+    // Remove existing event listeners to avoid duplicates
+    const handleMouseMove = (event: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      
+      const dataPoints = (canvas as any).dataPoints || [];
+      
+      if (dataPoints.length === 0) {
+        console.log('WAU: No data points available for tooltip');
+        return;
+      }
+
+      // Find closest point
+      let closestPoint = null;
+      let minDistance = Infinity;
+      
+      dataPoints.forEach((point: any) => {
+        const distance = Math.sqrt((point.x - x) ** 2 + (point.y - y) ** 2);
+        if (distance < 20 && distance < minDistance) {
+          minDistance = distance;
+          closestPoint = point;
+        }
+      });
+
+      if (closestPoint) {
+        // Update hovered point for highlighting
+        (canvas as any).hoveredPoint = closestPoint;
+        
+        // Redraw chart with highlight
+        const trendData = (canvas as any).trendData;
+        if (trendData) {
+          drawWAUChart(trendData);
+        }
+        
+        // Find corresponding data points for the same date
+        const sameXPoints = dataPoints.filter((p: any) => Math.abs(p.x - closestPoint.x) < 5);
+        const currentPoint = sameXPoints.find((p: any) => p.type === 'current');
+        const yoyPoint = sameXPoints.find((p: any) => p.type === 'yoy');
+        const year2023Point = sameXPoints.find((p: any) => p.type === '2023');
+        
+        // Show tooltip with comprehensive breakdown
+        let tooltipHTML = `<div class="font-semibold">${closestPoint.formattedDate}</div>`;
+        
+        if (closestPoint.type === 'current') {
+          tooltipHTML += `<div class="text-blue-300">2025: ${closestPoint.users.toLocaleString()} WAU</div>`;
+          if (yoyPoint) {
+            const yoyChange = ((closestPoint.users - yoyPoint.yoyUsers) / yoyPoint.yoyUsers * 100).toFixed(1);
+            tooltipHTML += `<div class="text-purple-300">2024: ${yoyPoint.yoyUsers.toLocaleString()} WAU <span class="text-xs">(${yoyChange > 0 ? '+' : ''}${yoyChange}% vs 2024)</span></div>`;
+          }
+          if (year2023Point) {
+            const year2023Change = ((closestPoint.users - year2023Point.year2023Users) / year2023Point.year2023Users * 100).toFixed(1);
+            tooltipHTML += `<div class="text-yellow-300">2023: ${year2023Point.year2023Users.toLocaleString()} WAU <span class="text-xs">(${year2023Change > 0 ? '+' : ''}${year2023Change}% vs 2023)</span></div>`;
+          }
+        } else if (closestPoint.type === 'yoy') {
+          tooltipHTML += `<div class="text-purple-300">2024: ${closestPoint.yoyUsers.toLocaleString()} WAU</div>`;
+          if (currentPoint) {
+            const change = ((currentPoint.users - closestPoint.yoyUsers) / closestPoint.yoyUsers * 100).toFixed(1);
+            tooltipHTML += `<div class="text-blue-300">2025: ${currentPoint.users.toLocaleString()} WAU <span class="text-xs">(${change > 0 ? '+' : ''}${change}% vs 2024)</span></div>`;
+          }
+        } else {
+          tooltipHTML += `<div class="text-yellow-300">2023: ${closestPoint.year2023Users.toLocaleString()} WAU</div>`;
+          if (currentPoint) {
+            const change = ((currentPoint.users - closestPoint.year2023Users) / closestPoint.year2023Users * 100).toFixed(1);
+            tooltipHTML += `<div class="text-blue-300">2025: ${currentPoint.users.toLocaleString()} WAU <span class="text-xs">(${change > 0 ? '+' : ''}${change}% vs 2023)</span></div>`;
+          }
+        }
+        
+        tooltipContent.innerHTML = tooltipHTML;
+        
+        // Position tooltip
+        tooltip.style.left = `${event.clientX - rect.left + 10}px`;
+        tooltip.style.top = `${event.clientY - rect.top - 10}px`;
+        tooltip.classList.remove('opacity-0');
+      } else {
+        // Clear hover state
+        (canvas as any).hoveredPoint = null;
+        
+        // Hide tooltip
+        tooltip.classList.add('opacity-0');
+      }
+    };
+    
+    const handleMouseLeave = () => {
+      // Clear hover state
+      (canvas as any).hoveredPoint = null;
+      
+      // Redraw without highlight
+      const trendData = (canvas as any).trendData;
+      if (trendData) {
+        drawWAUChart(trendData);
+      }
+      
+      // Hide tooltip
+      tooltip.classList.add('opacity-0');
+    };
+
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
+  }
+
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    const refreshButton = document.getElementById('refresh-wau');
+    refreshButton?.addEventListener('click', loadWAUData);
+    
+    setupWAUTooltip();
+    
+    // Auto-refresh every 5 minutes if enabled
+    const shouldAutoRefresh = document.querySelector('[data-auto-refresh]')?.getAttribute('data-auto-refresh') === 'true';
+    if (shouldAutoRefresh) {
+      setInterval(loadWAUData, 5 * 60 * 1000);
+    }
+    
+    // Load initial data
+    loadWAUData();
+  });
+</script> 
