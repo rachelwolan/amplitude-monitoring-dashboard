@@ -201,22 +201,27 @@ const { autoRefresh = true } = Astro.props;
     }
 
     container.innerHTML = segments.slice(0, 8).map(segment => {
+      // Safe access with fallbacks
+      const currentUsers = segment.currentUsers || segment.currentTotal || 0;
+      const growth = segment.growth || segment.yoyGrowth || 0;
+      const growthNum = parseFloat(growth) || 0;
+      
       const growthColor = showYoY ? (
-        segment.yoyGrowth > 10 ? 'text-green-600' :
-        segment.yoyGrowth < -10 ? 'text-red-600' :
+        growthNum > 10 ? 'text-green-600' :
+        growthNum < -10 ? 'text-red-600' :
         'text-gray-600'
       ) : 'text-gray-600';
 
       return `
         <div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
           <div class="flex-1">
-            <div class="font-medium text-sm text-gray-900">${segment.segment}</div>
-            <div class="text-xs text-gray-500">${segment.currentTotal.toLocaleString()} users</div>
+            <div class="font-medium text-sm text-gray-900">${segment.segment || 'Unknown'}</div>
+            <div class="text-xs text-gray-500">${currentUsers.toLocaleString()} users</div>
           </div>
           ${showYoY ? `
             <div class="text-right">
               <div class="text-xs ${growthColor} font-medium">
-                ${segment.yoyGrowth > 0 ? '+' : ''}${segment.yoyGrowth.toFixed(1)}%
+                ${growthNum > 0 ? '+' : ''}${growthNum.toFixed(1)}%
               </div>
               <div class="text-xs text-gray-400">YoY</div>
             </div>
@@ -233,18 +238,23 @@ const { autoRefresh = true } = Astro.props;
       return;
     }
 
-    container.innerHTML = segmentsData.userType.segments.map(segment => `
-      <div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
-        <div class="flex-1">
-          <div class="font-medium text-sm text-gray-900">${segment.segment}</div>
-          <div class="text-xs text-gray-500">${segment.currentTotal.toLocaleString()} users</div>
+    container.innerHTML = segmentsData.userType.segments.map(segment => {
+      const currentUsers = segment.currentUsers || segment.currentTotal || 0;
+      const percentage = segment.percentage || '0';
+      
+      return `
+        <div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
+          <div class="flex-1">
+            <div class="font-medium text-sm text-gray-900">${segment.segment || 'Unknown'}</div>
+            <div class="text-xs text-gray-500">${currentUsers.toLocaleString()} users</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-medium text-blue-600">${percentage}%</div>
+            <div class="text-xs text-gray-400">of WAU</div>
+          </div>
         </div>
-        <div class="text-right">
-          <div class="text-sm font-medium text-blue-600">${segment.percentage}%</div>
-          <div class="text-xs text-gray-400">of WAU</div>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
   function updateGrowthDrivers() {
@@ -255,25 +265,34 @@ const { autoRefresh = true } = Astro.props;
       ...(segmentsData.geographic.growthDrivers || []).map(d => ({...d, type: 'Geographic'})),
       ...(segmentsData.platform.growthDrivers || []).map(d => ({...d, type: 'Platform'})),
       ...(segmentsData.device.growthDrivers || []).map(d => ({...d, type: 'Device'}))
-    ].sort((a, b) => b.yoyGrowth - a.yoyGrowth).slice(0, 5);
+    ].sort((a, b) => {
+      const aGrowth = parseFloat(a.yoyGrowth || a.growth || 0);
+      const bGrowth = parseFloat(b.yoyGrowth || b.growth || 0);
+      return bGrowth - aGrowth;
+    }).slice(0, 5);
 
     if (allDrivers.length === 0) {
       container.innerHTML = '<div class="text-gray-500 text-sm">No significant growth drivers identified</div>';
       return;
     }
 
-    container.innerHTML = allDrivers.map((driver, index) => `
-      <div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
-        <div class="flex-1">
-          <div class="font-medium text-sm text-gray-900">${driver.segment}</div>
-          <div class="text-xs text-gray-500">${driver.type} • ${driver.currentTotal.toLocaleString()} users</div>
+    container.innerHTML = allDrivers.map((driver, index) => {
+      const currentUsers = driver.currentUsers || driver.currentTotal || 0;
+      const growth = parseFloat(driver.yoyGrowth || driver.growth || 0);
+      
+      return `
+        <div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
+          <div class="flex-1">
+            <div class="font-medium text-sm text-gray-900">${driver.segment || 'Unknown'}</div>
+            <div class="text-xs text-gray-500">${driver.type || 'Other'} • ${currentUsers.toLocaleString()} users</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-medium text-green-600">+${growth.toFixed(1)}%</div>
+            <div class="text-xs text-gray-400">YoY Growth</div>
+          </div>
         </div>
-        <div class="text-right">
-          <div class="text-sm font-medium text-green-600">+${driver.yoyGrowth.toFixed(1)}%</div>
-          <div class="text-xs text-gray-400">YoY Growth</div>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
   // Event listeners
