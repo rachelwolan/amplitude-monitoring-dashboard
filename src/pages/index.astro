@@ -37,6 +37,15 @@ const title = 'Amplitude Monitoring Agent';
 
         <!-- WAU Monitor -->
         <div>
+          <div class="flex items-center justify-between mb-4">
+            <div></div>
+            <a 
+              href="/wau-analysis" 
+              class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center"
+            >
+              📊 Detailed WAU Analysis →
+            </a>
+          </div>
           <WAUMonitor autoRefresh={true} title="Weekly Active Users (Last 12 Weeks)" />
         </div>
 

@@ -1,0 +1,289 @@
+---
+export interface Props {
+  autoRefresh?: boolean;
+}
+
+const { autoRefresh = true } = Astro.props;
+---
+
+<div class="bg-white rounded-lg shadow-lg p-6">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900">WAU Segment Analysis</h2>
+      <p class="text-gray-600 mt-1">Identifying growth drivers across user segments</p>
+    </div>
+    <div class="flex items-center space-x-4">
+      <div id="wau-segments-status" class="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+        Loading...
+      </div>
+      <button 
+        id="refresh-wau-segments" 
+        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+      >
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Key Insights Section -->
+  <div id="wau-insights-container" class="mb-8">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">🔍 Key Growth Insights</h3>
+    <div id="wau-insights" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- Insights will be populated by JavaScript -->
+    </div>
+  </div>
+
+  <!-- Segment Analysis Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+    
+    <!-- Geographic Segments -->
+    <div class="bg-gray-50 rounded-lg p-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">🌍 Geographic Segments</h3>
+      <div id="geographic-segments" class="space-y-3">
+        <!-- Will be populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Platform Segments -->
+    <div class="bg-gray-50 rounded-lg p-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">📱 Platform Segments</h3>
+      <div id="platform-segments" class="space-y-3">
+        <!-- Will be populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Device Type Segments -->
+    <div class="bg-gray-50 rounded-lg p-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">💻 Device Type Segments</h3>
+      <div id="device-segments" class="space-y-3">
+        <!-- Will be populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- User Type Analysis -->
+    <div class="bg-gray-50 rounded-lg p-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">👥 User Type Analysis</h3>
+      <div id="user-type-segments" class="space-y-3">
+        <!-- Will be populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Acquisition Sources -->
+    <div class="bg-gray-50 rounded-lg p-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">🚀 Acquisition Sources</h3>
+      <div id="acquisition-segments" class="space-y-3">
+        <!-- Will be populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Growth Drivers Summary -->
+    <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">📈 Top Growth Drivers</h3>
+      <div id="growth-drivers" class="space-y-3">
+        <!-- Will be populated by JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis Metadata -->
+  <div class="mt-6 text-xs text-gray-500 border-t pt-4">
+    <div class="flex justify-between items-center">
+      <span id="analysis-timeframe">Analyzing last 12 weeks</span>
+      <span id="analysis-timestamp">Last updated: Loading...</span>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ autoRefresh }}>
+  let segmentsData = null;
+
+  async function loadWAUSegments() {
+    try {
+      document.getElementById('wau-segments-status').textContent = 'Loading...';
+      document.getElementById('wau-segments-status').className = 'px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-700';
+
+      const response = await fetch('/api/wau-segments');
+      const result = await response.json();
+
+      if (result.success) {
+        segmentsData = result.data;
+        updateSegmentsDisplay();
+        document.getElementById('wau-segments-status').textContent = 'Analysis Complete';
+        document.getElementById('wau-segments-status').className = 'px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700';
+      } else {
+        throw new Error(result.error || 'Failed to load segment data');
+      }
+    } catch (error) {
+      console.error('Error loading WAU segments:', error);
+      document.getElementById('wau-segments-status').textContent = 'Error';
+      document.getElementById('wau-segments-status').className = 'px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700';
+      
+      // Show error message
+      document.getElementById('wau-insights').innerHTML = `
+        <div class="col-span-full bg-red-50 border border-red-200 rounded-lg p-4">
+          <div class="flex items-center">
+            <div class="text-red-400 mr-3">⚠️</div>
+            <div>
+              <h4 class="text-red-800 font-medium">Unable to load segment analysis</h4>
+              <p class="text-red-600 text-sm mt-1">${error.message}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  function updateSegmentsDisplay() {
+    if (!segmentsData) return;
+
+    // Update insights
+    updateInsights();
+    
+    // Update geographic segments
+    updateSegmentList('geographic-segments', segmentsData.geographic.segments, true);
+    
+    // Update platform segments
+    updateSegmentList('platform-segments', segmentsData.platform.segments, true);
+    
+    // Update device segments
+    updateSegmentList('device-segments', segmentsData.device.segments, true);
+    
+    // Update user type segments
+    updateUserTypeSegments();
+    
+    // Update acquisition segments
+    updateSegmentList('acquisition-segments', segmentsData.acquisition.segments, false);
+    
+    // Update growth drivers
+    updateGrowthDrivers();
+    
+    // Update metadata
+    document.getElementById('analysis-timeframe').textContent = segmentsData.timeframe;
+    document.getElementById('analysis-timestamp').textContent = 
+      `Last updated: ${new Date(segmentsData.analysisTimestamp).toLocaleString()}`;
+  }
+
+  function updateInsights() {
+    const container = document.getElementById('wau-insights');
+    if (!segmentsData.insights || segmentsData.insights.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-full bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="text-blue-600 text-sm">
+            📊 Analyzing segment performance patterns...
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = segmentsData.insights.map(insight => {
+      const bgColor = insight.severity === 'positive' ? 'bg-green-50 border-green-200' :
+                     insight.severity === 'info' ? 'bg-blue-50 border-blue-200' :
+                     'bg-yellow-50 border-yellow-200';
+      const textColor = insight.severity === 'positive' ? 'text-green-800' :
+                       insight.severity === 'info' ? 'text-blue-800' :
+                       'text-yellow-800';
+      
+      return `
+        <div class="${bgColor} border rounded-lg p-4">
+          <div class="font-medium ${textColor} text-sm mb-1">${insight.type}</div>
+          <div class="text-gray-700 text-sm">${insight.message}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function updateSegmentList(containerId, segments, showYoY = false) {
+    const container = document.getElementById(containerId);
+    if (!segments || segments.length === 0) {
+      container.innerHTML = '<div class="text-gray-500 text-sm">No data available</div>';
+      return;
+    }
+
+    container.innerHTML = segments.slice(0, 8).map(segment => {
+      const growthColor = showYoY ? (
+        segment.yoyGrowth > 10 ? 'text-green-600' :
+        segment.yoyGrowth < -10 ? 'text-red-600' :
+        'text-gray-600'
+      ) : 'text-gray-600';
+
+      return `
+        <div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
+          <div class="flex-1">
+            <div class="font-medium text-sm text-gray-900">${segment.segment}</div>
+            <div class="text-xs text-gray-500">${segment.currentTotal.toLocaleString()} users</div>
+          </div>
+          ${showYoY ? `
+            <div class="text-right">
+              <div class="text-xs ${growthColor} font-medium">
+                ${segment.yoyGrowth > 0 ? '+' : ''}${segment.yoyGrowth.toFixed(1)}%
+              </div>
+              <div class="text-xs text-gray-400">YoY</div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function updateUserTypeSegments() {
+    const container = document.getElementById('user-type-segments');
+    if (!segmentsData.userType.segments || segmentsData.userType.segments.length === 0) {
+      container.innerHTML = '<div class="text-gray-500 text-sm">No data available</div>';
+      return;
+    }
+
+    container.innerHTML = segmentsData.userType.segments.map(segment => `
+      <div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
+        <div class="flex-1">
+          <div class="font-medium text-sm text-gray-900">${segment.segment}</div>
+          <div class="text-xs text-gray-500">${segment.currentTotal.toLocaleString()} users</div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm font-medium text-blue-600">${segment.percentage}%</div>
+          <div class="text-xs text-gray-400">of WAU</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function updateGrowthDrivers() {
+    const container = document.getElementById('growth-drivers');
+    
+    // Collect all growth drivers
+    const allDrivers = [
+      ...(segmentsData.geographic.growthDrivers || []).map(d => ({...d, type: 'Geographic'})),
+      ...(segmentsData.platform.growthDrivers || []).map(d => ({...d, type: 'Platform'})),
+      ...(segmentsData.device.growthDrivers || []).map(d => ({...d, type: 'Device'}))
+    ].sort((a, b) => b.yoyGrowth - a.yoyGrowth).slice(0, 5);
+
+    if (allDrivers.length === 0) {
+      container.innerHTML = '<div class="text-gray-500 text-sm">No significant growth drivers identified</div>';
+      return;
+    }
+
+    container.innerHTML = allDrivers.map((driver, index) => `
+      <div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0">
+        <div class="flex-1">
+          <div class="font-medium text-sm text-gray-900">${driver.segment}</div>
+          <div class="text-xs text-gray-500">${driver.type} • ${driver.currentTotal.toLocaleString()} users</div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm font-medium text-green-600">+${driver.yoyGrowth.toFixed(1)}%</div>
+          <div class="text-xs text-gray-400">YoY Growth</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Event listeners
+  document.getElementById('refresh-wau-segments').addEventListener('click', loadWAUSegments);
+
+  // Auto-refresh every 5 minutes if enabled
+  if (autoRefresh) {
+    setInterval(loadWAUSegments, 5 * 60 * 1000);
+  }
+
+  // Initial load
+  loadWAUSegments();
+</script> 

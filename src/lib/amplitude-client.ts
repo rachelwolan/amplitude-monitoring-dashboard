@@ -734,4 +734,371 @@ export class AmplitudeClient {
       };
     }
   }
+
+  // New WAU Segment Analysis Methods
+  async getWeeklyActiveUsersByCountry(weeks: number = 12): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const endDate = new Date();
+      const startDate = subDays(endDate, weeks * 7);
+      
+      const response = await axios.get(`${this.baseUrl}/events/segmentation`, {
+        headers: this.getAuthHeaders(),
+        params: {
+          e: JSON.stringify({
+            "event_type": "_active"
+          }),
+          start: format(startDate, 'yyyyMMdd'),
+          end: format(endDate, 'yyyyMMdd'),
+          m: 'uniques',
+          i: 7, // 7-day intervals for weekly data
+          s: JSON.stringify([{
+            "prop": "country",
+            "op": "is",
+            "values": []
+          }])
+        },
+        timeout: 20000
+      });
+
+      return {
+        success: true,
+        data: response.data?.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.response?.statusText || error.message
+      };
+    }
+  }
+
+  async getWeeklyActiveUsersByPlatform(weeks: number = 12): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const endDate = new Date();
+      const startDate = subDays(endDate, weeks * 7);
+      
+      const response = await axios.get(`${this.baseUrl}/events/segmentation`, {
+        headers: this.getAuthHeaders(),
+        params: {
+          e: JSON.stringify({
+            "event_type": "_active"
+          }),
+          start: format(startDate, 'yyyyMMdd'),
+          end: format(endDate, 'yyyyMMdd'),
+          m: 'uniques',
+          i: 7,
+          s: JSON.stringify([{
+            "prop": "platform",
+            "op": "is",
+            "values": []
+          }])
+        },
+        timeout: 20000
+      });
+
+      return {
+        success: true,
+        data: response.data?.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.response?.statusText || error.message
+      };
+    }
+  }
+
+  async getWeeklyActiveUsersByDeviceType(weeks: number = 12): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const endDate = new Date();
+      const startDate = subDays(endDate, weeks * 7);
+      
+      const response = await axios.get(`${this.baseUrl}/events/segmentation`, {
+        headers: this.getAuthHeaders(),
+        params: {
+          e: JSON.stringify({
+            "event_type": "_active"
+          }),
+          start: format(startDate, 'yyyyMMdd'),
+          end: format(endDate, 'yyyyMMdd'),
+          m: 'uniques',
+          i: 7,
+          s: JSON.stringify([{
+            "prop": "device_type",
+            "op": "is",
+            "values": []
+          }])
+        },
+        timeout: 20000
+      });
+
+      return {
+        success: true,
+        data: response.data?.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.response?.statusText || error.message
+      };
+    }
+  }
+
+  async getWeeklyActiveUsersByAcquisitionSource(weeks: number = 12): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const endDate = new Date();
+      const startDate = subDays(endDate, weeks * 7);
+      
+      const response = await axios.get(`${this.baseUrl}/events/segmentation`, {
+        headers: this.getAuthHeaders(),
+        params: {
+          e: JSON.stringify({
+            "event_type": "_active"
+          }),
+          start: format(startDate, 'yyyyMMdd'),
+          end: format(endDate, 'yyyyMMdd'),
+          m: 'uniques',
+          i: 7,
+          s: JSON.stringify([{
+            "prop": "utm_source",
+            "op": "is",
+            "values": []
+          }])
+        },
+        timeout: 20000
+      });
+
+      return {
+        success: true,
+        data: response.data?.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.response?.statusText || error.message
+      };
+    }
+  }
+
+  async getWeeklyActiveUsersByUserType(weeks: number = 12): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const endDate = new Date();
+      const startDate = subDays(endDate, weeks * 7);
+      
+      // Get new users and returning users separately
+      const [newUsersResult, returningUsersResult] = await Promise.all([
+        this.getWeeklyActiveUsersNewVsExisting(weeks),
+        this.getWeeklyActiveUsers(weeks)
+      ]);
+
+      if (!newUsersResult.success || !returningUsersResult.success) {
+        return {
+          success: false,
+          error: 'Failed to fetch user type data'
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          newUsers: newUsersResult.data?.newUsers,
+          returningUsers: newUsersResult.data?.existingUsers,
+          totalUsers: returningUsersResult.data
+        }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.response?.statusText || error.message
+      };
+    }
+  }
+
+  async getWeeklyActiveUsersCohortAnalysis(weeks: number = 12): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const endDate = new Date();
+      const startDate = subDays(endDate, weeks * 7);
+      
+      // Get users segmented by first seen date ranges (cohorts)
+      const response = await axios.get(`${this.baseUrl}/events/segmentation`, {
+        headers: this.getAuthHeaders(),
+        params: {
+          e: JSON.stringify({
+            "event_type": "_active"
+          }),
+          start: format(startDate, 'yyyyMMdd'),
+          end: format(endDate, 'yyyyMMdd'),
+          m: 'uniques',
+          i: 7,
+          s: JSON.stringify([{
+            "prop": "user_first_seen",
+            "op": "relative",
+            "values": ["-30d", "-7d", "-1d"] // Last 30 days, 7 days, 1 day cohorts
+          }])
+        },
+        timeout: 20000
+      });
+
+      return {
+        success: true,
+        data: response.data?.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.response?.statusText || error.message
+      };
+    }
+  }
+
+  // YoY comparison methods for segment analysis
+  async getWeeklyActiveUsersByCountryYoY(weeks: number = 12): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const currentEndDate = new Date();
+      const currentStartDate = subDays(currentEndDate, weeks * 7);
+      const yoyEndDate = subDays(currentEndDate, 365);
+      const yoyStartDate = subDays(currentStartDate, 365);
+      
+      const response = await axios.get(`${this.baseUrl}/events/segmentation`, {
+        headers: this.getAuthHeaders(),
+        params: {
+          e: JSON.stringify({
+            "event_type": "_active"
+          }),
+          start: format(yoyStartDate, 'yyyyMMdd'),
+          end: format(yoyEndDate, 'yyyyMMdd'),
+          m: 'uniques',
+          i: 7,
+          s: JSON.stringify([{
+            "prop": "country",
+            "op": "is",
+            "values": []
+          }])
+        },
+        timeout: 20000
+      });
+
+      return {
+        success: true,
+        data: response.data?.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.response?.statusText || error.message
+      };
+    }
+  }
+
+  async getWeeklyActiveUsersByPlatformYoY(weeks: number = 12): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const currentEndDate = new Date();
+      const currentStartDate = subDays(currentEndDate, weeks * 7);
+      const yoyEndDate = subDays(currentEndDate, 365);
+      const yoyStartDate = subDays(currentStartDate, 365);
+      
+      const response = await axios.get(`${this.baseUrl}/events/segmentation`, {
+        headers: this.getAuthHeaders(),
+        params: {
+          e: JSON.stringify({
+            "event_type": "_active"
+          }),
+          start: format(yoyStartDate, 'yyyyMMdd'),
+          end: format(yoyEndDate, 'yyyyMMdd'),
+          m: 'uniques',
+          i: 7,
+          s: JSON.stringify([{
+            "prop": "platform",
+            "op": "is",
+            "values": []
+          }])
+        },
+        timeout: 20000
+      });
+
+      return {
+        success: true,
+        data: response.data?.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.response?.statusText || error.message
+      };
+    }
+  }
+
+  async getWeeklyActiveUsersByDeviceTypeYoY(weeks: number = 12): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const currentEndDate = new Date();
+      const currentStartDate = subDays(currentEndDate, weeks * 7);
+      const yoyEndDate = subDays(currentEndDate, 365);
+      const yoyStartDate = subDays(currentStartDate, 365);
+      
+      const response = await axios.get(`${this.baseUrl}/events/segmentation`, {
+        headers: this.getAuthHeaders(),
+        params: {
+          e: JSON.stringify({
+            "event_type": "_active"
+          }),
+          start: format(yoyStartDate, 'yyyyMMdd'),
+          end: format(yoyEndDate, 'yyyyMMdd'),
+          m: 'uniques',
+          i: 7,
+          s: JSON.stringify([{
+            "prop": "device_type",
+            "op": "is",
+            "values": []
+          }])
+        },
+        timeout: 20000
+      });
+
+      return {
+        success: true,
+        data: response.data?.data
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.response?.statusText || error.message
+      };
+    }
+  }
 } 
