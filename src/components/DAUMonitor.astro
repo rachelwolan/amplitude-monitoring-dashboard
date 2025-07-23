@@ -77,7 +77,8 @@ const { autoRefresh = true } = Astro.props;
     <div class="bg-gray-50 rounded-lg p-4 relative">
       <canvas 
         id="dau-chart" 
-        class="w-full h-80 cursor-crosshair"
+        class="w-full cursor-crosshair"
+        style="height: 480px;"
       ></canvas>
       <div id="chart-tooltip" class="absolute bg-gray-900 text-white text-sm rounded-lg px-3 py-2 pointer-events-none opacity-0 transition-opacity duration-200 z-10 whitespace-nowrap shadow-lg">
         <div id="tooltip-content"></div>
