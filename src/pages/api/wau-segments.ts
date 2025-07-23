@@ -91,27 +91,27 @@ export const GET: APIRoute = async ({ request }) => {
       .filter(seg => parseFloat(seg.growth) > 10 && seg.currentUsers > 1000)
       .sort((a, b) => parseFloat(b.growth) - parseFloat(a.growth));
 
-    // Generate platform segments
+    // Generate platform segments with realistic B2B SaaS distribution
     const platformSegments = [
       {
         segment: 'Web',
-        currentUsers: Math.round(currentWAU * 0.45),
-        yoyUsers: Math.round(yoyWAU * 0.50),
-        growth: (((currentWAU * 0.45) - (yoyWAU * 0.50)) / (yoyWAU * 0.50) * 100).toFixed(1),
-        trendDirection: 'down' as const
+        currentUsers: Math.round(currentWAU * 0.78), // 78% web-based users
+        yoyUsers: Math.round(yoyWAU * 0.82), // Was 82% last year
+        growth: (((currentWAU * 0.78) - (yoyWAU * 0.82)) / (yoyWAU * 0.82) * 100).toFixed(1),
+        trendDirection: (((currentWAU * 0.78) - (yoyWAU * 0.82)) / (yoyWAU * 0.82)) > 0 ? 'up' as const : 'down' as const
       },
       {
         segment: 'iOS',
-        currentUsers: Math.round(currentWAU * 0.32),
-        yoyUsers: Math.round(yoyWAU * 0.28),
-        growth: (((currentWAU * 0.32) - (yoyWAU * 0.28)) / (yoyWAU * 0.28) * 100).toFixed(1),
+        currentUsers: Math.round(currentWAU * 0.13), // 13% iOS mobile app
+        yoyUsers: Math.round(yoyWAU * 0.10), // Was 10% last year
+        growth: (((currentWAU * 0.13) - (yoyWAU * 0.10)) / (yoyWAU * 0.10) * 100).toFixed(1),
         trendDirection: 'up' as const
       },
       {
         segment: 'Android',
-        currentUsers: Math.round(currentWAU * 0.23),
-        yoyUsers: Math.round(yoyWAU * 0.22),
-        growth: (((currentWAU * 0.23) - (yoyWAU * 0.22)) / (yoyWAU * 0.22) * 100).toFixed(1),
+        currentUsers: Math.round(currentWAU * 0.09), // 9% Android mobile app
+        yoyUsers: Math.round(yoyWAU * 0.08), // Was 8% last year
+        growth: (((currentWAU * 0.09) - (yoyWAU * 0.08)) / (yoyWAU * 0.08) * 100).toFixed(1),
         trendDirection: 'up' as const
       }
     ];
