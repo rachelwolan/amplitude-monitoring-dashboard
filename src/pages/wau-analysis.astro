@@ -1,0 +1,141 @@
+---
+import Layout from '../layouts/Layout.astro';
+import WAUSegments from '../components/WAUSegments.astro';
+---
+
+<Layout title="WAU Segment Analysis - Amplitude Monitoring">
+  <main class="min-h-screen bg-gray-100 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <!-- Page Header -->
+      <div class="mb-8">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-3xl font-bold text-gray-900">Weekly Active Users</h1>
+            <p class="text-gray-600 mt-2">Comprehensive segment analysis to identify growth drivers</p>
+          </div>
+          <div class="flex items-center space-x-4">
+            <a 
+              href="/" 
+              class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              ← Back to Dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analysis Questions Section -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+        <h2 class="text-xl font-semibold text-blue-900 mb-4">🔍 Key Questions We're Answering</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="space-y-2">
+            <h3 class="font-medium text-blue-800">Geographic Analysis</h3>
+            <ul class="text-sm text-blue-700 space-y-1">
+              <li>• Which countries are driving WAU growth?</li>
+              <li>• Are specific regions showing acceleration?</li>
+              <li>• What's the YoY growth by geography?</li>
+            </ul>
+          </div>
+          <div class="space-y-2">
+            <h3 class="font-medium text-blue-800">Platform & Device</h3>
+            <ul class="text-sm text-blue-700 space-y-1">
+              <li>• Which platforms are gaining traction?</li>
+              <li>• Is mobile vs desktop usage shifting?</li>
+              <li>• Are new device types emerging?</li>
+            </ul>
+          </div>
+          <div class="space-y-2">
+            <h3 class="font-medium text-blue-800">User Behavior</h3>
+            <ul class="text-sm text-blue-700 space-y-1">
+              <li>• New vs returning user balance?</li>
+              <li>• Which acquisition channels work?</li>
+              <li>• What cohorts are most engaged?</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- WAU Segments Analysis Component -->
+      <WAUSegments autoRefresh={true} />
+
+      <!-- Methodology Section -->
+      <div class="mt-8 bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">📊 Analysis Methodology</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h3 class="font-medium text-gray-900 mb-2">Data Sources</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li>• Amplitude Analytics: User behavior events</li>
+              <li>• Geographic data: Country-level segmentation</li>
+              <li>• Platform data: iOS, Android, Web platforms</li>
+              <li>• Device data: Mobile, desktop, tablet usage</li>
+              <li>• UTM data: Acquisition source tracking</li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="font-medium text-gray-900 mb-2">Key Metrics</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li>• <strong>WAU Growth:</strong> Year-over-year percentage change</li>
+              <li>• <strong>Segment Share:</strong> Percentage of total WAU</li>
+              <li>• <strong>Growth Drivers:</strong> Segments with >10% YoY growth</li>
+              <li>• <strong>New vs Returning:</strong> User acquisition vs retention</li>
+              <li>• <strong>Acquisition Effectiveness:</strong> Channel performance</li>
+            </ul>
+          </div>
+        </div>
+        <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+          <h3 class="font-medium text-gray-900 mb-2">💡 Interpretation Guide</h3>
+          <div class="text-sm text-gray-600 space-y-2">
+            <p><strong>Growth Drivers (>10% YoY):</strong> Segments significantly outperforming overall growth. Focus marketing and product efforts here.</p>
+            <p><strong>Geographic Expansion:</strong> New country growth may indicate successful localization or organic viral spread.</p>
+            <p><strong>Platform Shifts:</strong> Changes in platform distribution may reflect user behavior trends or platform-specific improvements.</p>
+            <p><strong>New User %:</strong> &gt;30% indicates strong acquisition; &lt;15% indicates high retention but may need acquisition focus.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Items Section -->
+      <div class="mt-8 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">🎯 Recommended Actions</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white rounded-lg p-4">
+            <h3 class="font-medium text-green-800 mb-2">🌍 Geographic Focus</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li>• Double down on high-growth countries</li>
+              <li>• Investigate localization opportunities</li>
+              <li>• Study successful regional strategies</li>
+              <li>• Consider timezone-specific campaigns</li>
+            </ul>
+          </div>
+          <div class="bg-white rounded-lg p-4">
+            <h3 class="font-medium text-blue-800 mb-2">📱 Platform Optimization</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li>• Optimize growing platform experiences</li>
+              <li>• Investigate declining platform issues</li>
+              <li>• Cross-platform feature parity review</li>
+              <li>• Platform-specific user journeys</li>
+            </ul>
+          </div>
+          <div class="bg-white rounded-lg p-4">
+            <h3 class="font-medium text-purple-800 mb-2">👥 User Experience</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li>• Enhance high-performing acquisition channels</li>
+              <li>• Improve new user onboarding</li>
+              <li>• Boost retention for returning users</li>
+              <li>• A/B test segment-specific features</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</Layout>
+
+<style>
+  /* Custom styles for the analysis page */
+  .gradient-bg {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+</style> 
